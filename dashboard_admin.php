@@ -7,36 +7,34 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     exit;
 }
 
-// Fetch Stats
-$stmt = $pdo->query("SELECT COUNT(*) FROM bookings");
-$total_orders = $stmt->fetchColumn();
-
-$stmt = $pdo->query("SELECT SUM(price) FROM bookings WHERE payment_status = 'Paid'");
-$total_revenue = $stmt->fetchColumn();
-
-$stmt = $pdo->query("SELECT COUNT(*) FROM bookings WHERE status NOT IN ('Selesai')");
-$active_orders = $stmt->fetchColumn();
-
-// Fetch All Bookings
-$stmt = $pdo->prepare("SELECT b.*, g.name as gear_name, u.name as customer_name, k.name as kurir_name 
-                       FROM bookings b 
-                       JOIN gears g ON b.gear_id = g.id 
-                       JOIN users u ON b.user_id = u.id 
-                       LEFT JOIN users k ON b.kurir_id = k.id
-                       ORDER BY b.created_at DESC");
-$stmt->execute();
-$bookings = $stmt->fetchAll();
-
-// Fetch Treatments
-$stmt = $pdo->query("SELECT * FROM treatments");
-$treatments = $stmt->fetchAll();
-
-// Fetch Users (Kurir & Customer)
-$stmt = $pdo->query("SELECT * FROM users WHERE role = 'kurir'");
-$kurirs = $stmt->fetchAll();
-
-$stmt = $pdo->query("SELECT * FROM users WHERE role = 'customer'");
-$customers = $stmt->fetchAll();
+$active_tab = $_GET['tab'] ?? 'orders';
+// Stats — selalu dimuat (ringan, dipakai di semua halaman)
+$total_orders = $pdo->query("SELECT COUNT(*) FROM bookings")->fetchColumn();
+$total_revenue = $pdo->query("SELECT SUM(price) FROM bookings WHERE payment_status = 'Paid'")->fetchColumn();
+$active_orders = $pdo->query("SELECT COUNT(*) FROM bookings WHERE status NOT IN ('Selesai')")->fetchColumn();
+// Data dimuat HANYA sesuai tab yang aktif
+$bookings = [];
+$treatments = [];
+$kurirs = [];
+$customers = [];
+if ($active_tab === 'orders') {
+    // Tab Order: hanya butuh bookings + kurirs
+    $stmt = $pdo->prepare("SELECT b.*, g.name as gear_name, u.name as customer_name, k.name as kurir_name 
+                           FROM bookings b JOIN gears g ON b.gear_id = g.id 
+                           JOIN users u ON b.user_id = u.id 
+                           LEFT JOIN users k ON b.kurir_id = k.id
+                           ORDER BY b.created_at DESC");
+    $stmt->execute();
+    $bookings = $stmt->fetchAll();
+    $kurirs = $pdo->query("SELECT * FROM users WHERE role = 'kurir'")->fetchAll();
+} elseif ($active_tab === 'services') {
+    // Tab Layanan: hanya butuh treatments
+    $treatments = $pdo->query("SELECT * FROM treatments")->fetchAll();
+} elseif ($active_tab === 'users') {
+    // Tab User: hanya butuh kurirs + customers
+    $kurirs = $pdo->query("SELECT * FROM users WHERE role = 'kurir'")->fetchAll();
+    $customers = $pdo->query("SELECT * FROM users WHERE role = 'customer'")->fetchAll();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
